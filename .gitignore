@@ -1,4 +1,4 @@
-__pycache__/
+﻿__pycache__/
 
 config.txt
 cookies.txt
@@ -6,5 +6,6 @@ problema.txt
 
 *.pid
 *.saida.log
-log_fibra.bak
+*.bak
 log_*.csv
+config_testador.json

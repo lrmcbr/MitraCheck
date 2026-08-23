@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitor da Fibra — Como funciona</title>
+<style>
+  :root { --fundo:#0f172a; --painel:#1e293b; --texto:#e2e8f0; --cinza:#94a3b8; --verde:#4ade80; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Segoe UI",system-ui,sans-serif; background:var(--fundo); color:var(--texto); padding:24px; max-width:900px; margin:0 auto; line-height:1.55; }
+  h1 { font-size:1.5rem; margin-bottom:6px; }
+  .sub { color:var(--cinza); margin-bottom:24px; }
+  section { background:var(--painel); border-radius:10px; padding:20px 22px; margin-bottom:18px; }
+  h2 { font-size:1.05rem; margin-bottom:10px; }
+  p, li { font-size:.92rem; color:#cbd5e1; }
+  ul { padding-left:20px; margin-top:6px; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; font-size:.88rem; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid #334155; }
+  th { color:var(--cinza); font-weight:600; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
+  td:first-child { white-space:nowrap; }
+  .cartoes { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:4px; }
+  @media (max-width:700px) { .cartoes { grid-template-columns:1fr; } }
+  a.botao { display:inline-block; background:var(--verde); color:#052e16; text-decoration:none; font-weight:600; border-radius:8px; padding:12px 18px; font-size:.95rem; }
+  a.botao.neutro { background:#475569; color:var(--texto); font-weight:400; }
+  code { background:#0f172a; border-radius:5px; padding:2px 6px; font-size:.85em; }
+</style>
+</head>
+<body>
+
+<h1>Monitor da Fibra</h1>
+<p class="sub">Vigilância contínua do sinal óptico e da velocidade da sua conexão Vivo/Claro.</p>
+
+<section>
+  <h2>Acesse</h2>
+  <div class="cartoes">
+    <div>
+      <p><strong>Painel de gráficos</strong></p>
+      <p style="margin:6px 0 12px">Sinais Rx/Tx, ping e velocidade em tempo real, com filtro de período e atualização automática.</p>
+      <a class="botao" href="grafico.html">Abrir gráficos</a>
+    </div>
+    <div>
+      <p><strong>Administração</strong></p>
+      <p style="margin:6px 0 12px">Configurar modem e credenciais, apagar/exportar dados, alterar a porta do servidor.</p>
+      <a class="botao neutro" href="admin.html">Abrir administração</a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Como o sistema funciona</h2>
+  <ul>
+    <li><code>monitor.py</code> — a cada 30 s entra na página interna do modem (GPON), lê as potências ópticas Rx/Tx e o estado da sessão PPP, mede o ping até 8.8.8.8 e grava em <code>log_fibra.csv</code>.</li>
+    <li><code>velocidade.py</code> — no intervalo configurado (padrão: 30 min), executa o Speedtest CLI oficial da Ookla contra servidores locais e grava em <code>log_velocidade.csv</code>.</li>
+    <li><code>servidor.py</code> — serve estas páginas, expõe as APIs do painel e controla os dois coletores (iniciar/parar pela página de gráficos).</li>
+  </ul>
+</section>
+
+<section>
+  <h2>O que significa cada dado</h2>
+  <table>
+    <tr><th>Dado</th><th>Significado</th></tr>
+    <tr><td>Rx (dBm)</td><td>Potência óptica <em>recebida</em> pela ONU. Ideal: melhor que −25 dBm. Entre −25 e −28: atenção (sinal fraco). Abaixo de −28: crítico — acione a operadora.</td></tr>
+    <tr><td>Tx (dBm)</td><td>Potência óptica <em>transmitida</em>. Valores típicos entre +1 e +5 dBm.</td></tr>
+    <tr><td>PPP</td><td>Estado da sessão PPPoE com a operadora. Qualquer coisa diferente de "Conectado" indica queda de autenticação.</td></tr>
+    <tr><td>Ping (ms)</td><td>Latência até 8.8.8.8. Em fibra saudável, espere valores de 5–20 ms. Picos altos ou "sem resposta" indicam instabilidade.</td></tr>
+    <tr><td>Download / Upload (Mbps)</td><td>Capacidade real medida pelo Ookla Speedtest contra um servidor local. É o número válido para comparar com o plano contratado.</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>Boas práticas</h2>
+  <ul>
+    <li>O teste de velocidade satura o link por alguns segundos — videochamadas podem engasgar nesse instante.</li>
+    <li>Nas quedas de energia do modem, o monitor tenta refazer login automaticamente a cada ciclo.</li>
+    <li>Backups <code>.bak</code> são criados automaticamente antes de qualquer exclusão de dados.</li>
+  </ul>
+</section>
+
+</body>
+</html>

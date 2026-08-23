@@ -1,6 +1,9 @@
 import argparse
+import os
+import re
 import socket
 import subprocess
+import sys
 
 from roteador import Roteador, avaliar_sinal_rx, carregar_credenciais
 
@@ -12,18 +15,30 @@ def obter_ip_local() -> str:
 
 
 def obter_ip_roteador() -> str | None:
+    if sys.platform == "win32":
+        resultado = subprocess.run(
+            ["route", "print", "-4", "0.0.0.0"],
+            capture_output=True,
+            text=True,
+        )
+        for linha in resultado.stdout.splitlines():
+            partes = linha.split()
+            if len(partes) >= 5 and partes[0] == "0.0.0.0" and partes[1] == "0.0.0.0":
+                gateway = partes[2]
+                if gateway != "On-link":
+                    return gateway
+        return None
+    if sys.platform == "darwin":
+        resultado = subprocess.run(
+            ["route", "-n", "get", "default"], capture_output=True, text=True
+        )
+        m = re.search(r"gateway:\s+(\d+\.\d+\.\d+\.\d+)", resultado.stdout)
+        return m.group(1) if m else None
     resultado = subprocess.run(
-        ["route", "print", "-4", "0.0.0.0"],
-        capture_output=True,
-        text=True,
+        ["ip", "route", "show", "default"], capture_output=True, text=True
     )
-    for linha in resultado.stdout.splitlines():
-        partes = linha.split()
-        if len(partes) >= 5 and partes[0] == "0.0.0.0" and partes[1] == "0.0.0.0":
-            gateway = partes[2]
-            if gateway != "On-link":
-                return gateway
-    return None
+    m = re.search(r"default via (\d+\.\d+\.\d+\.\d+)", resultado.stdout)
+    return m.group(1) if m else None
 
 
 def diagnostico_local() -> None:

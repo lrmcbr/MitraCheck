@@ -12,6 +12,8 @@
   body { font-family:"Segoe UI",system-ui,sans-serif; background:var(--fundo); color:var(--texto); padding:24px; max-width:1100px; margin:0 auto; }
   header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
   h1 { font-size:1.3rem; font-weight:600; }
+  h1 a { color:var(--cinza); text-decoration:none; margin-right:8px; }
+  h1 a:hover { color:var(--verde); }
   .cartoes { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
   .cartao { background:var(--painel); border-radius:10px; padding:14px 16px; }
   .cartao .rotulo { font-size:.75rem; color:var(--cinza); text-transform:uppercase; letter-spacing:.05em; }
@@ -36,7 +38,7 @@
 <body>
 
 <header>
-  <h1>Monitor do sinal da fibra</h1>
+  <h1><a href="index.html" title="Voltar ao início">&lt;</a>Monitor do sinal da fibra</h1>
   <div>
     <button id="botaoPeriodo" class="botao desligado" type="button"></button>
     <button id="botaoMonitor" class="botao" type="button" disabled>Monitor: ...</button>

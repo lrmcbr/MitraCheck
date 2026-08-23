@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Administração — Monitor da Fibra</title>
+<style>
+  :root { --fundo:#0f172a; --painel:#1e293b; --texto:#e2e8f0; --cinza:#94a3b8; --verde:#4ade80; --vermelho:#f87171; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Segoe UI",system-ui,sans-serif; background:var(--fundo); color:var(--texto); padding:24px; max-width:900px; margin:0 auto; }
+  header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
+  h1 { font-size:1.3rem; font-weight:600; }
+  nav a { color:var(--verde); text-decoration:none; margin-left:16px; }
+  nav a:hover { text-decoration:underline; }
+  section { background:var(--painel); border-radius:10px; padding:20px; margin-bottom:20px; }
+  h2 { font-size:1rem; margin-bottom:14px; color:var(--texto); }
+  label { display:block; font-size:.8rem; color:var(--cinza); margin:10px 0 4px; }
+  input { width:100%; background:#0f172a; border:1px solid #334155; border-radius:8px; padding:9px 12px; color:var(--texto); font-size:.9rem; }
+  .linha { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+  .linha > div { flex:1; min-width:160px; }
+  .botao { background:var(--verde); color:#052e16; border:none; border-radius:8px; padding:9px 16px; cursor:pointer; font-size:.85rem; font-weight:600; margin-top:12px; }
+  .botao.neutro { background:#475569; color:var(--texto); font-weight:400; }
+  .botao.perigo { background:var(--vermelho); color:#450a0a; }
+  #avisos { position:fixed; bottom:16px; right:16px; max-width:340px; }
+  .aviso { background:#334155; border-radius:8px; padding:10px 14px; margin-top:8px; font-size:.85rem; }
+  .aviso.erro { background:#7f1d1d; }
+  .estado { font-size:.85rem; color:var(--cinza); }
+  .dica { font-size:.75rem; color:var(--cinza); margin-top:4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Administração do testador</h1>
+  <nav>
+    <a href="index.html">Início</a>
+    <a href="grafico.html">Gráficos</a>
+  </nav>
+</header>
+
+<section>
+  <h2>Configurações do testador</h2>
+  <form id="formConfig">
+    <div class="linha">
+      <div>
+        <label for="ip">IP do modem Claro</label>
+        <input id="ip" placeholder="192.168.15.1">
+      </div>
+      <div>
+        <label for="intervalo">Intervalo entre medições (minutos)</label>
+        <input id="intervalo" type="number" min="5" max="1440">
+      </div>
+    </div>
+    <div class="linha">
+      <div>
+        <label for="usuario">Usuário do modem</label>
+        <input id="usuario" autocomplete="off">
+      </div>
+      <div>
+        <label for="senha">Senha do modem</label>
+        <input id="senha" type="password" autocomplete="new-password">
+        <div class="dica" id="dicaSenha"></div>
+      </div>
+    </div>
+    <button class="botao" type="submit">Salvar configurações</button>
+    <span class="estado" id="estadoProcessos"></span>
+  </form>
+</section>
+
+<section>
+  <h2>Dados coletados</h2>
+  <div class="linha">
+    <div>
+      <label for="dataCorte">Apagar dados anteriores a</label>
+      <input id="dataCorte" type="datetime-local">
+    </div>
+    <div style="flex:0">
+      <button class="botao perigo" id="botaoApagarAntes">Apagar anteriores</button><br>
+      <button class="botao perigo" id="botaoApagarTudo" style="margin-right:0">Apagar TUDO</button>
+    </div>
+  </div>
+  <div class="linha" style="margin-top:12px">
+    <div style="flex:0">
+      <a href="/api/exportar/fibra"><button class="botao neutro" type="button">Exportar fibra (CSV)</button></a>
+      <a href="/api/exportar/velocidade"><button class="botao neutro" type="button">Exportar velocidade (CSV)</button></a>
+    </div>
+  </div>
+  <div class="dica">Sempre é criado um backup (.bak) antes de apagar.</div>
+</section>
+
+<section>
+  <h2>Porta do servidor</h2>
+  <div class="linha">
+    <div>
+      <label for="porta">Nova porta (1024–65535)</label>
+      <input id="porta" type="number" min="1024" max="65535">
+    </div>
+    <div style="flex:0">
+      <button class="botao neutro" id="botaoPorta">Alterar porta</button>
+    </div>
+  </div>
+  <div class="dica">A página será recarregada no novo endereço após a alteração.</div>
+</section>
+
+<div id="avisos"></div>
+
+<script>
+function avisar(texto, erro) {
+  const div = document.createElement("div");
+  div.className = "aviso" + (erro ? " erro" : "");
+  div.textContent = texto;
+  document.getElementById("avisos").appendChild(div);
+  setTimeout(() => div.remove(), 6000);
+}
+
+async function api(url, opcoes) {
+  const r = await fetch(url, opcoes);
+  const dados = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(dados.erro || "HTTP " + r.status);
+  return dados;
+}
+
+async function carregarConfig() {
+  try {
+    const c = await api("/api/config");
+    ip.value = c.ip_modem;
+    intervalo.value = c.intervalo_min;
+    porta.value = c.porta;
+    usuario.placeholder = c.usuario || "não definido";
+    dicaSenha.textContent = c.senha_definida ? "Uma senha já está definida; deixe vazio para manter." : "Nenhuma senha definida.";
+    const s = await api("/api/status");
+    estadoProcessos.textContent =
+      `Monitor: ${s.monitor ? "rodando" : "parado"} · Velocidade: ${s.velocidade ? "rodando" : "parado"} · Porta: ${s.porta}`;
+  } catch (e) {
+    avisar("Falha ao carregar configurações: " + e.message, true);
+  }
+}
+
+document.getElementById("formConfig").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const corpo = {
+    ip_modem: ip.value.trim(),
+    intervalo_min: parseInt(intervalo.value, 10),
+  };
+  if (usuario.value.trim() && senha.value) {
+    corpo.usuario = usuario.value.trim();
+    corpo.senha = senha.value;
+  }
+  try {
+    const r = await api("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    });
+    senha.value = "";
+    avisar("Configurações salvas." + (r.reiniciados.length ? " Reiniciados: " + r.reiniciados.join(", ") + "." : ""));
+    carregarConfig();
+  } catch (e) {
+    avisar("Erro ao salvar: " + e.message, true);
+  }
+});
+
+document.getElementById("botaoApagarTudo").addEventListener("click", async () => {
+  if (!confirm("Apagar TODAS as medições de fibra e velocidade? Um backup .bak será criado.")) return;
+  try {
+    const r = await api("/api/dados/apagar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modo: "tudo" }),
+    });
+    avisar(`Dados apagados. Restantes — fibra: ${r.restantes.fibra ?? "-"}, velocidade: ${r.restantes.velocidade ?? "-"}`);
+  } catch (e) {
+    avisar("Erro: " + e.message, true);
+  }
+});
+
+document.getElementById("botaoApagarAntes").addEventListener("click", async () => {
+  if (!dataCorte.value) return avisar("Escolha uma data primeiro.", true);
+  if (!confirm(`Apagar medições anteriores a ${dataCorte.value}?`)) return;
+  try {
+    const r = await api("/api/dados/apagar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modo: "antes", data: dataCorte.value }),
+    });
+    avisar(`Medições antigas apagadas. Restantes — fibra: ${r.restantes.fibra ?? "-"}, velocidade: ${r.restantes.velocidade ?? "-"}`);
+  } catch (e) {
+    avisar("Erro: " + e.message, true);
+  }
+});
+
+document.getElementById("botaoPorta").addEventListener("click", async () => {
+  const nova = parseInt(porta.value, 10);
+  if (!nova) return avisar("Informe a nova porta.", true);
+  try {
+    await api("/api/porta", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ porta: nova }),
+    });
+    avisar(`Porta alterada para ${nova}; redirecionando...`);
+    setTimeout(() => location.href = `http://${location.hostname}:${nova}/admin.html`, 1500);
+  } catch (e) {
+    avisar("Erro: " + e.message, true);
+  }
+});
+
+carregarConfig();
+setInterval(carregarConfig, 15000);
+</script>
+
+</body>
+</html>

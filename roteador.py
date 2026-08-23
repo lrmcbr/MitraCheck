@@ -1,14 +1,40 @@
 import hashlib
 import html
+import json
 import re
+import segredos
 import urllib.parse
 import urllib.request
 from http.cookiejar import CookieJar
+from pathlib import Path
 
 BASE = "http://192.168.15.1"
 
 
+def _base_do_config():
+    try:
+        cfg = json.loads(
+            (Path(__file__).parent / "config_testador.json").read_text(encoding="utf-8")
+        )
+        ip = str(cfg.get("ip_modem") or "").strip()
+        if ip:
+            return ip if ip.startswith("http") else f"http://{ip}"
+    except Exception:
+        pass
+    return BASE
+
+
 def carregar_credenciais(caminho="config.txt"):
+    try:
+        cfg = json.loads(
+            (Path(__file__).parent / "config_testador.json").read_text(encoding="utf-8")
+        )
+        usuario = str(cfg.get("usuario") or "").strip()
+        senha = str(cfg.get("senha") or "")
+        if usuario and senha:
+            return usuario, segredos.desproteger(senha)
+    except Exception:
+        pass
     with open(caminho, encoding="utf-8") as arq:
         usuario, senha = arq.read().split()
     return usuario, senha
@@ -28,8 +54,8 @@ def _codificar_senha(senha):
 
 
 class Roteador:
-    def __init__(self, base=BASE):
-        self.base = base
+    def __init__(self, base=None):
+        self.base = base or _base_do_config()
         self.jar = CookieJar()
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.jar)

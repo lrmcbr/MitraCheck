@@ -10,13 +10,13 @@ from roteador import Roteador, carregar_credenciais
 
 
 def pingar_internet() -> int | None:
+    if os.name == "nt":
+        comando = ["ping", "-n", "1", "-w", "2000", "8.8.8.8"]
+    else:
+        comando = ["ping", "-c", "1", "-W", "2", "8.8.8.8"]
     try:
-        resultado = subprocess.run(
-            ["ping", "-n", "1", "-w", "2000", "8.8.8.8"],
-            capture_output=True,
-            text=True,
-        )
-        m = re.search(r"tempo[=<](\d+)ms", resultado.stdout)
+        resultado = subprocess.run(comando, capture_output=True, text=True)
+        m = re.search(r"(?:tempo|time)[=<]\s*(\d+)", resultado.stdout)
         if m:
             return int(m.group(1))
         return None
