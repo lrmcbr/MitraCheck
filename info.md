@@ -1,0 +1,1 @@
+Esse é um app para investigar e diagnosticar os problemas da minha rede.

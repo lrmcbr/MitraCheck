@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitor da Fibra</title>
+<script src="chart.umd.js"></script>
+<script>window.Chart || document.write('<scr' + 'ipt src="https://cdn.jsdelivr.net/npm/chart.js@4"><\/scr' + 'ipt>');</script>
+<style>
+  :root { --fundo:#0f172a; --painel:#1e293b; --texto:#e2e8f0; --cinza:#94a3b8; --verde:#4ade80; --amarelo:#facc15; --vermelho:#f87171; --azul:#38bdf8; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Segoe UI",system-ui,sans-serif; background:var(--fundo); color:var(--texto); padding:24px; max-width:1100px; margin:0 auto; }
+  header { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
+  h1 { font-size:1.3rem; font-weight:600; }
+  .cartoes { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .cartao { background:var(--painel); border-radius:10px; padding:14px 16px; }
+  .cartao .rotulo { font-size:.75rem; color:var(--cinza); text-transform:uppercase; letter-spacing:.05em; }
+  .cartao .valor { font-size:1.5rem; font-weight:600; margin-top:4px; }
+  .ok { color:var(--verde); } .atencao { color:var(--amarelo); } .critico { color:var(--vermelho); }
+  .painel-grafico { background:var(--painel); border-radius:10px; padding:16px; }
+  .painel-grafico h2 { font-size:.95rem; color:var(--cinza); font-weight:500; margin-bottom:12px; }
+  .altura { position:relative; height:300px; }
+  .grade { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
+  @media (max-width:850px) { .grade { grid-template-columns:1fr; } }
+  #mensagem { color:var(--cinza); font-size:.9rem; }
+  .botao { background:var(--verde); color:#052e16; border:none; border-radius:8px; padding:8px 14px; cursor:pointer; font-size:.85rem; font-weight:600; margin-right:10px; }
+  .botao.desligado { background:#475569; color:var(--texto); font-weight:400; }
+  .botao:disabled { opacity:.45; cursor:not-allowed; }
+  .linha-progresso { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+  #barraFundo { flex:1; height:8px; background:var(--painel); border-radius:99px; overflow:hidden; }
+  #barraPreenchida { height:100%; width:0%; background:linear-gradient(90deg,var(--azul),var(--verde)); border-radius:99px; }
+  .parada #barraFundo { opacity:.35; }
+  #contagem { font-size:.8rem; color:var(--cinza); min-width:4ch; text-align:right; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Monitor do sinal da fibra</h1>
+  <div>
+    <button id="botaoPeriodo" class="botao desligado" type="button"></button>
+    <button id="botaoMonitor" class="botao" type="button" disabled>Monitor: ...</button>
+    <button id="botaoVelocidade" class="botao" type="button" disabled>Velocidade: ...</button>
+    <button id="botaoAuto" class="botao" type="button"></button>
+    <span id="mensagem"></span>
+  </div>
+</header>
+
+<div class="linha-progresso" id="linhaProgresso">
+  <div id="barraFundo"><div id="barraPreenchida"></div></div>
+  <span id="contagem"></span>
+</div>
+
+<div class="cartoes">
+  <div class="cartao"><div class="rotulo">Rx (atual)</div><div class="valor" id="cartaoRx">--</div></div>
+  <div class="cartao"><div class="rotulo">Tx (atual)</div><div class="valor" id="cartaoTx">--</div></div>
+  <div class="cartao"><div class="rotulo">Ping (atual)</div><div class="valor" id="cartaoPing">--</div></div>
+  <div class="cartao"><div class="rotulo">PPP</div><div class="valor" id="cartaoPpp">--</div></div>
+  <div class="cartao"><div class="rotulo">Medições</div><div class="valor" id="cartaoTotal">--</div></div>
+</div>
+
+<div class="grade">
+  <div class="painel-grafico">
+    <h2>Rx &mdash; potência recebida (dBm) &mdash; ideal: melhor que &minus;25</h2>
+    <div class="altura"><canvas id="graficoRx"></canvas></div>
+  </div>
+
+  <div class="painel-grafico">
+    <h2>Tx &mdash; potência transmitida (dBm)</h2>
+    <div class="altura"><canvas id="graficoTx"></canvas></div>
+  </div>
+
+  <div class="painel-grafico">
+    <h2>Ping até 8.8.8.8 (ms)</h2>
+    <div class="altura"><canvas id="graficoPing"></canvas></div>
+  </div>
+
+  <div class="painel-grafico">
+    <h2>Velocidade da internet (Mbps)</h2>
+    <div class="altura"><canvas id="graficoVelocidade"></canvas></div>
+  </div>
+</div>
+
+<script>
+let graficoRx = null, graficoTx = null, graficoPing = null, graficoVelocidade = null;
+let dadosFibra = [], dadosVelocidade = [];
+
+const PERIODOS = [
+  { rotulo: "Últimos 5 minutos", ms: 5 * 60000 },
+  { rotulo: "Última hora", ms: 3600000 },
+  { rotulo: "Últimas 6 horas", ms: 6 * 3600000 },
+  { rotulo: "Últimas 24 horas", ms: 24 * 3600000 },
+  { rotulo: "Última semana", ms: 7 * 86400000 },
+  { rotulo: "Último mês", ms: 30 * 86400000 },
+  { rotulo: "Esse ano", ano: true },
+  { rotulo: "Todo período", ms: Infinity },
+];
+let indicePeriodo = PERIODOS.length - 1;
+
+function filtrarPeriodo(dados) {
+  const p = PERIODOS[indicePeriodo];
+  if (p.ms === Infinity) return dados;
+  const limite = p.ano ? new Date(new Date().getFullYear(), 0, 1) : new Date(Date.now() - p.ms);
+  return dados.filter(d => new Date(d.data_hora.replace(" ", "T")) >= limite);
+}
+
+function recortar(dados) {
+  const filtrados = filtrarPeriodo(dados);
+  const passo = Math.max(1, Math.ceil(filtrados.length / 2000));
+  return passo > 1 ? filtrados.filter((_, i) => i % passo === 0 || i === filtrados.length - 1) : filtrados;
+}
+
+function rotulosDe(dados) {
+  if (!dados.length) return [];
+  const t0 = new Date(dados[0].data_hora.replace(" ", "T"));
+  const t1 = new Date(dados[dados.length - 1].data_hora.replace(" ", "T"));
+  const longo = t1 - t0 >= 20 * 3600000;
+  return dados.map(d => {
+    const [dia, hora] = d.data_hora.split(" ");
+    return longo ? dia.slice(5) + " " + hora.slice(0, 5) : hora;
+  });
+}
+
+function dividirLinha(linha) {
+  const campos = [];
+  let campo = "", dentro = false;
+  for (let i = 0; i < linha.length; i++) {
+    const c = linha[i];
+    if (dentro) {
+      if (c === '"') { if (linha[i + 1] === '"') { campo += '"'; i++; } else dentro = false; }
+      else campo += c;
+    } else {
+      if (c === '"') dentro = true;
+      else if (c === ";") { campos.push(campo); campo = ""; }
+      else campo += c;
+    }
+  }
+  campos.push(campo);
+  return campos;
+}
+
+function lerCsv(texto) {
+  const linhas = texto.replace(/^\uFEFF/, "").trim().split(/\r?\n/);
+  const cabecalho = dividirLinha(linhas[0]).map(c => c.trim());
+  return linhas.slice(1)
+    .filter(l => l.trim() !== "")
+    .map(l => {
+      const v = dividirLinha(l);
+      const obj = {};
+      cabecalho.forEach((nome, i) => obj[nome] = (v[i] ?? "").trim());
+      return obj;
+    });
+}
+
+const corClasseRx = rx => rx <= -28 ? "critico" : rx > -25 ? "ok" : "atencao";
+
+function renderFibra(brutos) {
+  if (!brutos.length) return;
+  const ultimoBruto = brutos[brutos.length - 1];
+  const dados = recortar(brutos);
+  const rotulos = rotulosDe(dados);
+  const rx = dados.map(d => d.rx_dbm === "" ? null : parseFloat(d.rx_dbm.replace(",", ".")));
+  const tx = dados.map(d => d.tx_dbm === "" ? null : parseFloat(d.tx_dbm.replace(",", ".")));
+  const ping = dados.map(d => d.ping_ms === "" ? null : parseInt(d.ping_ms, 10));
+  const limiar = rx.map(() => -25);
+
+  const ultimo = ultimoBruto;
+  const rxAtual = ultimo.rx_dbm === "" || !ultimo.rx_dbm ? null : parseFloat(ultimo.rx_dbm.replace(",", "."));
+  const elRx = document.getElementById("cartaoRx");
+  elRx.textContent = rxAtual === null ? "?" : rxAtual.toFixed(2) + " dBm";
+  elRx.className = "valor " + (rxAtual === null ? "" : corClasseRx(rxAtual));
+  document.getElementById("cartaoTx").textContent = tx[tx.length - 1] === null || tx[tx.length - 1] === undefined ? "?" : tx[tx.length - 1].toFixed(2) + " dBm";
+  document.getElementById("cartaoPing").textContent = isNaN(ping[ping.length - 1]) ? "sem resp" : ping[ping.length - 1] + " ms";
+  document.getElementById("cartaoPpp").textContent = ultimo.ppp || "?";
+  document.getElementById("cartaoTotal").textContent = dados.length;
+
+  const dica = ctx => {
+    const d = dados[ctx[0].dataIndex];
+    const partes = [d.data_hora, "PPP: " + (d.ppp || "?")];
+    if (d.ping_ms !== "") partes.push("ping: " + d.ping_ms + " ms");
+    if (d.observacao) partes.push(d.observacao);
+    return partes;
+  };
+
+  if (graficoRx) graficoRx.destroy();
+  graficoRx = new Chart(document.getElementById("graficoRx"), {
+    type: "line",
+    data: { labels: rotulos, datasets: [
+      { label: "Rx (dBm)", data: rx, borderColor: "#38bdf8", backgroundColor: "#38bdf833", tension: .25, spanGaps: true, pointRadius: 2 },
+      { label: "Limiar (-25)", data: limiar, borderColor: "#facc1588", borderDash: [6, 6], pointRadius: 0, borderWidth: 1 }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      scales: { y: { ticks: { color: "#94a3b8" }, grid: { color: "#33415555" } }, x: { ticks: { color: "#94a3b8", maxTicksLimit: 12 }, grid: { display: false } } },
+      plugins: { legend: { labels: { color: "#e2e8f0" } }, tooltip: { callbacks: { afterBody: dica } } }
+    }
+  });
+
+  if (graficoTx) graficoTx.destroy();
+  graficoTx = new Chart(document.getElementById("graficoTx"), {
+    type: "line",
+    data: { labels: rotulos, datasets: [
+      { label: "Tx (dBm)", data: tx, borderColor: "#4ade80", backgroundColor: "#4ade8033", tension: .25, spanGaps: true, pointRadius: 2 }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      scales: { y: { ticks: { color: "#94a3b8" }, grid: { color: "#33415555" } }, x: { ticks: { color: "#94a3b8", maxTicksLimit: 12 }, grid: { display: false } } },
+      plugins: { legend: { labels: { color: "#e2e8f0" } }, tooltip: { callbacks: { afterBody: dica } } }
+    }
+  });
+
+  if (graficoPing) graficoPing.destroy();
+  graficoPing = new Chart(document.getElementById("graficoPing"), {
+    type: "line",
+    data: { labels: rotulos, datasets: [
+      { label: "Ping (ms)", data: ping, borderColor: "#a78bfa", backgroundColor: "#a78bfa33", tension: .25, spanGaps: true, pointRadius: 2 }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      scales: { y: { beginAtZero: true, ticks: { color: "#94a3b8" }, grid: { color: "#33415555" } }, x: { ticks: { color: "#94a3b8", maxTicksLimit: 12 }, grid: { display: false } } },
+      plugins: { legend: { labels: { color: "#e2e8f0" } }, tooltip: { callbacks: { afterBody: dica } } }
+    }
+  });
+}
+
+function renderVelocidade(brutos) {
+  if (!brutos.length) return;
+  const dados = recortar(brutos);
+  const rotulos = rotulosDe(dados);
+  const down = dados.map(d => d.download_mbps === "" ? null : parseFloat(d.download_mbps.replace(",", ".")));
+  const up = dados.map(d => d.upload_mbps === "" ? null : parseFloat(d.upload_mbps.replace(",", ".")));
+
+  const dica = ctx => {
+    const d = dados[ctx[0].dataIndex];
+    const partes = [d.data_hora];
+    if (d.ping_ms !== "") partes.push("ping: " + d.ping_ms + " ms");
+    if (d.observacao) partes.push(d.observacao);
+    return partes;
+  };
+
+  if (graficoVelocidade) graficoVelocidade.destroy();
+  graficoVelocidade = new Chart(document.getElementById("graficoVelocidade"), {
+    type: "line",
+    data: { labels: rotulos, datasets: [
+      { label: "Download (Mbps)", data: down, borderColor: "#f472b6", backgroundColor: "#f472b633", tension: .25, spanGaps: true, pointRadius: 2 },
+      { label: "Upload (Mbps)", data: up, borderColor: "#34d399", backgroundColor: "#34d39933", tension: .25, spanGaps: true, pointRadius: 2 }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      scales: { y: { beginAtZero: true, ticks: { color: "#94a3b8" }, grid: { color: "#33415555" } }, x: { ticks: { color: "#94a3b8", maxTicksLimit: 12 }, grid: { display: false } } },
+      plugins: { legend: { labels: { color: "#e2e8f0" } }, tooltip: { callbacks: { afterBody: dica } } }
+    }
+  });
+}
+
+let autoAtualizar = localStorage.getItem("autoAtualizar") !== "0";
+let temporizador = null;
+let quadro = null;
+let inicioCiclo = performance.now();
+const INTERVALO_MS = 30000;
+const barraPreenchida = document.getElementById("barraPreenchida");
+const contagem = document.getElementById("contagem");
+const linhaProgresso = document.getElementById("linhaProgresso");
+
+function atualizarDados() {
+  carregar("log_fibra.csv", renderFibra).catch(() => {});
+  carregar("log_velocidade.csv", renderVelocidade).catch(() => {});
+}
+
+function lacoBarra() {
+  if (!autoAtualizar) return;
+  const decorrido = performance.now() - inicioCiclo;
+  const pct = Math.min(100, decorrido / INTERVALO_MS * 100);
+  barraPreenchida.style.width = pct + "%";
+  contagem.textContent = Math.max(0, Math.ceil((INTERVALO_MS - decorrido) / 1000)) + "s";
+  quadro = requestAnimationFrame(lacoBarra);
+}
+
+function aplicarAuto() {
+  const botao = document.getElementById("botaoAuto");
+  botao.textContent = autoAtualizar ? "Auto: LIGADO" : "Auto: DESLIGADO";
+  botao.classList.toggle("desligado", !autoAtualizar);
+  clearInterval(temporizador);
+  cancelAnimationFrame(quadro);
+  if (autoAtualizar) {
+    linhaProgresso.classList.remove("parada");
+    inicioCiclo = performance.now();
+    temporizador = setInterval(() => { atualizarDados(); inicioCiclo = performance.now(); }, INTERVALO_MS);
+    quadro = requestAnimationFrame(lacoBarra);
+  } else {
+    linhaProgresso.classList.add("parada");
+    barraPreenchida.style.width = "0%";
+    contagem.textContent = "pausado";
+  }
+}
+
+document.getElementById("botaoAuto").addEventListener("click", () => {
+  autoAtualizar = !autoAtualizar;
+  localStorage.setItem("autoAtualizar", autoAtualizar ? "1" : "0");
+  aplicarAuto();
+});
+
+const botaoMonitor = document.getElementById("botaoMonitor");
+const botaoVelocidade = document.getElementById("botaoVelocidade");
+
+function definirBotaoScript(botao, rodando, nome) {
+  botao.textContent = `${nome}: ${rodando ? "RODANDO" : "PARADO"}`;
+  botao.classList.toggle("desligado", !rodando);
+}
+
+async function atualizarBotoesScripts() {
+  try {
+    const r = await fetch("/api/status");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const s = await r.json();
+    definirBotaoScript(botaoMonitor, !!s.monitor, "Monitor");
+    definirBotaoScript(botaoVelocidade, !!s.velocidade, "Velocidade");
+    botaoMonitor.disabled = false;
+    botaoVelocidade.disabled = false;
+    document.getElementById("mensagem").textContent = "";
+  } catch {
+    definirBotaoScript(botaoMonitor, false, "Monitor");
+    definirBotaoScript(botaoVelocidade, false, "Velocidade");
+    botaoMonitor.disabled = true;
+    botaoVelocidade.disabled = true;
+    document.getElementById("mensagem").textContent =
+      location.protocol === "file:"
+        ? "Controles off-line: abra http://localhost:8000/grafico.html"
+        : "Controles off-line (" + (e && e.message ? e.message : e) + ") origem=" + location.origin;
+  }
+}
+
+async function alternarScript(nome, rodando) {
+  try {
+    await fetch(`/api/${rodando ? "parar" : "iniciar"}/${nome}`, { method: "POST" });
+  } catch {}
+  await atualizarBotoesScripts();
+}
+
+botaoMonitor.addEventListener("click", () => alternarScript("monitor", !botaoMonitor.classList.contains("desligado")));
+botaoVelocidade.addEventListener("click", () => alternarScript("velocidade", !botaoVelocidade.classList.contains("desligado")));
+
+setInterval(atualizarBotoesScripts, 5000);
+atualizarBotoesScripts();
+
+aplicarAuto();
+
+const carregar = (url, render, guardar) =>
+  fetch(url)
+    .then(r => {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.text();
+    })
+    .then(texto => {
+      const dados = lerCsv(texto);
+      if (guardar) guardar(dados);
+      render(dados);
+    });
+
+carregar("log_fibra.csv", renderFibra, d => dadosFibra = d);
+carregar("log_velocidade.csv", renderVelocidade, d => dadosVelocidade = d);
+
+const botaoPeriodo = document.getElementById("botaoPeriodo");
+botaoPeriodo.addEventListener("click", () => {
+  indicePeriodo = (indicePeriodo + 1) % PERIODOS.length;
+  aplicarBotaoPeriodo();
+});
+
+function aplicarBotaoPeriodo() {
+  botaoPeriodo.textContent = PERIODOS[indicePeriodo].rotulo;
+  if (dadosFibra.length) renderFibra(dadosFibra);
+  if (dadosVelocidade.length) renderVelocidade(dadosVelocidade);
+}
+
+aplicarBotaoPeriodo();
+</script>
+
+</body>
+</html>

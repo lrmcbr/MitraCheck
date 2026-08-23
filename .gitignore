@@ -1,0 +1,10 @@
+__pycache__/
+
+config.txt
+cookies.txt
+problema.txt
+
+*.pid
+*.saida.log
+log_fibra.bak
+log_*.csv
