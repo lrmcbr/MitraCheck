@@ -31,7 +31,13 @@ def localizar_binario(caminho: str | None) -> str:
 def testar(binario: str) -> tuple[float, float, int | None, str]:
     comando = [binario, "--accept-license", "--accept-gdpr", "--format=json"]
     try:
-        resultado = subprocess.run(comando, capture_output=True, text=True, timeout=180)
+        resultado = subprocess.run(
+            comando,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=180,
+        )
     except subprocess.TimeoutExpired:
         return None, None, None, "ERRO: speedtest excedeu 180s"
 
@@ -80,6 +86,9 @@ def main() -> None:
     parser.add_argument("--binario", default=None, help="caminho do speedtest.exe (padrao: procura no PATH/winget)")
     parser.add_argument("--uma-vez", action="store_true", help="roda um teste e sai")
     args = parser.parse_args()
+
+    arquivo_pid = Path(__file__).parent / "velocidade.pid"
+    arquivo_pid.write_text(str(os.getpid()), encoding="utf-8")
 
     if "--intervalo" not in sys.argv:
         try:
@@ -136,6 +145,10 @@ def main() -> None:
         print("Teste interrompido pelo usuario.")
     finally:
         arquivo.close()
+        try:
+            arquivo_pid.unlink()
+        except FileNotFoundError:
+            pass
 
 
 if __name__ == "__main__":

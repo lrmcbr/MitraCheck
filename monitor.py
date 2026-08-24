@@ -5,8 +5,23 @@ import re
 import subprocess
 import time
 from datetime import datetime
+from pathlib import Path
 
 from roteador import Roteador, carregar_credenciais
+
+
+ARQUIVO_PID = Path(__file__).parent / "monitor.pid"
+
+
+def registrar_pid():
+    ARQUIVO_PID.write_text(str(os.getpid()), encoding="utf-8")
+
+
+def limpar_pid():
+    try:
+        ARQUIVO_PID.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def pingar_internet() -> int | None:
@@ -56,6 +71,8 @@ def main() -> None:
     parser.add_argument("--uma-vez", action="store_true", help="coleta uma medida e sai")
     args = parser.parse_args()
 
+    registrar_pid()
+
     usuario, senha = carregar_credenciais()
     roteador = Roteador()
     try:
@@ -82,7 +99,7 @@ def main() -> None:
                 elif valor_rx > -25:
                     pass
                 else:
-                    alertas.append("Rx em ATENCAO (sinal fraco; ideal e melhor que -25 dBm)")
+                    alertas.append("Rx em ATENCAO (sinal fraco; ideal é melhor que -25 dBm)")
             if ppp not in ("Conectado", ""):
                 alertas.append(f"PPP {ppp}")
             if ms is None:
@@ -107,6 +124,7 @@ def main() -> None:
         print("Monitor interrompido pelo usuario.")
     finally:
         arquivo.close()
+        limpar_pid()
 
 
 if __name__ == "__main__":

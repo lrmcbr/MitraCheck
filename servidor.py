@@ -1,3 +1,4 @@
+import ctypes
 import json
 import os
 import segredos
@@ -46,7 +47,49 @@ EXPORTACOES = {
 
 processos = {}
 registros = {}
+pids_adotados = {}
 estado_servidor = {"porta": 8000, "servidor": None}
+
+
+def processo_vivo(pid):
+    if os.name == "nt":
+        h = ctypes.windll.kernel32.OpenProcess(0x00100000, False, pid)
+        if not h:
+            return False
+        ctypes.windll.kernel32.CloseHandle(h)
+        return True
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def matar_pid(pid):
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+    else:
+        import signal
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+
+
+def pid_de_orfao(nome):
+    caminho = PASTA / f"{nome}.pid"
+    try:
+        pid = int(caminho.read_text(encoding="utf-8").strip())
+    except Exception:
+        return None
+    return pid if processo_vivo(pid) else None
+
+
+def limpar_pidfile(nome):
+    try:
+        (PASTA / f"{nome}.pid").unlink()
+    except FileNotFoundError:
+        pass
 
 
 def carregar_config():
@@ -83,7 +126,14 @@ def salvar_config(cfg):
 
 def esta_rodando(nome):
     proc = processos.get(nome)
-    return proc is not None and proc.poll() is None
+    if proc is not None and proc.poll() is None:
+        return True
+    pid = pid_de_orfao(nome)
+    if pid is not None:
+        pids_adotados[nome] = pid
+        return True
+    pids_adotados.pop(nome, None)
+    return False
 
 
 def estados():
@@ -121,17 +171,20 @@ def parar(nome):
     if nome not in SCRIPTS:
         return "script desconhecido"
     proc = processos.get(nome)
-    if proc is None or proc.poll() is not None:
-        return None
-    proc.terminate()
-    try:
-        proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
     registro = registros.pop(nome, None)
     if registro is not None:
         registro.close()
     processos[nome] = None
+    pid = pids_adotados.pop(nome, None) or pid_de_orfao(nome)
+    if pid is not None:
+        matar_pid(pid)
+    limpar_pidfile(nome)
     return None
 
 
