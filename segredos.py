@@ -4,7 +4,7 @@ import platform
 import subprocess
 from ctypes import wintypes
 
-SERVICO = "monitor-fibra"
+SERVICO = "mitracheck-vivo"
 
 PREFIXO_DPAPI = "dpapi:"
 PREFIXO_KEYCHAIN = "keychain:"
@@ -82,7 +82,7 @@ def _proteger_secret_tool(texto: str) -> str:
     subprocess.run(
         [
             "secret-tool", "store",
-            "--label=Monitor da Fibra",
+            "--label=MitraCheck Vivo",
             "servico", SERVICO,
             "senha", texto,
         ],

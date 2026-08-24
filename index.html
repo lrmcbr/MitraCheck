@@ -3,78 +3,187 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Monitor da Fibra — Como funciona</title>
+<title>MitraCheck Vivo — Saúde da sua Fibra</title>
 <style>
-  :root { --fundo:#0f172a; --painel:#1e293b; --texto:#e2e8f0; --cinza:#94a3b8; --verde:#4ade80; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:"Segoe UI",system-ui,sans-serif; background:var(--fundo); color:var(--texto); padding:24px; max-width:900px; margin:0 auto; line-height:1.55; }
-  h1 { font-size:1.5rem; margin-bottom:6px; }
-  .sub { color:var(--cinza); margin-bottom:24px; }
-  section { background:var(--painel); border-radius:10px; padding:20px 22px; margin-bottom:18px; }
-  h2 { font-size:1.05rem; margin-bottom:10px; }
-  p, li { font-size:.92rem; color:#cbd5e1; }
-  ul { padding-left:20px; margin-top:6px; }
-  table { width:100%; border-collapse:collapse; margin-top:8px; font-size:.88rem; }
-  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid #334155; }
-  th { color:var(--cinza); font-weight:600; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
-  td:first-child { white-space:nowrap; }
-  .cartoes { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:4px; }
-  @media (max-width:700px) { .cartoes { grid-template-columns:1fr; } }
-  a.botao { display:inline-block; background:var(--verde); color:#052e16; text-decoration:none; font-weight:600; border-radius:8px; padding:12px 18px; font-size:.95rem; }
-  a.botao.neutro { background:#475569; color:var(--texto); font-weight:400; }
-  code { background:#0f172a; border-radius:5px; padding:2px 6px; font-size:.85em; }
+  :root { 
+    --fundo: #0f172a; 
+    --painel: #1e293b; 
+    --texto: #f8fafc; 
+    --cinza: #94a3b8; 
+    --verde: #22c55e; 
+    --azul-vivo: #660099;
+    --alerta: #f59e0b;
+    --critico: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { 
+    font-family: "Inter", -apple-system, sans-serif; 
+    background: var(--fundo); 
+    color: var(--texto); 
+    padding: 20px; 
+    max-width: 900px; 
+    margin: 0 auto; 
+    line-height: 1.6; 
+  }
+  
+  header { text-align: center; margin-bottom: 40px; padding-top: 20px; }
+  h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; }
+  .badge { background: var(--azul-vivo); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; vertical-align: middle; }
+  .sub { color: var(--cinza); font-size: 1.1rem; }
+
+  section { background: var(--painel); border-radius: 16px; padding: 24px; margin-bottom: 24px; border: 1px solid #334155; }
+  h2 { font-size: 1.25rem; margin-bottom: 16px; border-left: 4px solid var(--azul-vivo); padding-left: 12px; }
+  
+  .grid-links { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 600px) { .grid-links { grid-template-columns: 1fr; } }
+  
+  .card-link { 
+    text-decoration: none; 
+    color: inherit; 
+    background: #0f172a; 
+    padding: 20px; 
+    border-radius: 12px; 
+    border: 1px solid #334155;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .card-link:hover { transform: translateY(-3px); border-color: var(--verde); }
+  .card-link h3 { font-size: 1.1rem; margin-bottom: 8px; color: var(--verde); }
+
+  .status-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+  .status-table th, .status-table td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
+  .status-table th { color: var(--cinza); font-size: 0.8rem; text-transform: uppercase; }
+
+  .label-ok { color: var(--verde); font-weight: bold; }
+  .label-aviso { color: var(--alerta); font-weight: bold; }
+  .label-ruim { color: var(--critico); font-weight: bold; }
+
+  code { background: #0f172a; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: var(--verde); }
+  .nota { font-size: 0.85rem; color: var(--cinza); margin-top: 10px; font-style: italic; }
+  footer { text-align: center; color: var(--cinza); font-size: 0.8rem; margin-top: 40px; padding-bottom: 20px; }
 </style>
 </head>
 <body>
 
-<h1>Monitor da Fibra</h1>
-<p class="sub">Vigilância contínua do sinal óptico e da velocidade da sua conexão Vivo/Claro.</p>
+<header>
+  <h1>MitraCheck <span class="badge">VIVO</span></h1>
+  <p class="sub">Vigilância constante da sua fibra do modem MitraStar GPT-2742GX4X5v6.</p>
+</header>
 
 <section>
-  <h2>Acesse</h2>
-  <div class="cartoes">
-    <div>
-      <p><strong>Painel de gráficos</strong></p>
-      <p style="margin:6px 0 12px">Sinais Rx/Tx, ping e velocidade em tempo real, com filtro de período e atualização automática.</p>
-      <a class="botao" href="grafico.html">Abrir gráficos</a>
-    </div>
-    <div>
-      <p><strong>Administração</strong></p>
-      <p style="margin:6px 0 12px">Configurar modem e credenciais, apagar/exportar dados, alterar a porta do servidor.</p>
-      <a class="botao neutro" href="admin.html">Abrir administração</a>
-    </div>
+  <h2>🧭 Menu</h2>
+  <div class="grid-links">
+    <a href="grafico.html" class="card-link">
+      <h3>Painel de Gráficos</h3>
+      <p>Veja o histórico de sinal, quedas e velocidade real.</p>
+    </a>
+    <a href="admin.html" class="card-link">
+      <h3>Administração</h3>
+      <p>Configure limites de alerta e credenciais do modem.</p>
+    </a>
   </div>
 </section>
 
 <section>
-  <h2>Como o sistema funciona</h2>
-  <ul>
-    <li><code>monitor.py</code> — a cada 30 s entra na página interna do modem (GPON), lê as potências ópticas Rx/Tx e o estado da sessão PPP, mede o ping até 8.8.8.8 e grava em <code>log_fibra.csv</code>.</li>
-    <li><code>velocidade.py</code> — no intervalo configurado (padrão: 30 min), executa o Speedtest CLI oficial da Ookla contra servidores locais e grava em <code>log_velocidade.csv</code>.</li>
-    <li><code>servidor.py</code> — serve estas páginas, expõe as APIs do painel e controla os dois coletores (iniciar/parar pela página de gráficos).</li>
+  <h2>📡 Como o MitraCheck monitora a saúde da sua internet?</h2>
+  <p>O sistema realiza dois tipos de vigilância com objetivos diferentes para garantir que sua internet não te deixe na mão:</p>
+  
+  <ul style="list-style: none; margin-top: 15px;">
+    <li style="margin-bottom: 15px;">
+      <strong>1. Saúde Física (Intensidade da Luz):</strong> 
+      A cada <strong>30 segundos</strong>, o sistema acessa a tela de administração do seu modem. Ele "lê" a força do laser que viaja pela fibra direto do hardware.
+      <div class="nota">Exclusivo para o modem MitraStar GPT-2742GX4X5v6 (Vivo Box Wi-Fi 6).</div>
+    </li>
+    <li>
+      <strong>2. Desempenho Real (Velocidade):</strong>
+      A cada <strong><span class="dado-intervalo">2 horas</span></strong> (configurável na Administração), o sistema faz um teste de carga usando a tecnologia oficial da <strong>Ookla (Speedtest)</strong>. 
+      <div class="nota">Este teste é mais espaçado para não "roubar" sua banda durante o uso normal da casa.</div>
+    </li>
   </ul>
 </section>
 
 <section>
-  <h2>O que significa cada dado</h2>
-  <table>
-    <tr><th>Dado</th><th>Significado</th></tr>
-    <tr><td>Rx (dBm)</td><td>Potência óptica <em>recebida</em> pela ONU. Ideal: melhor que −25 dBm. Entre −25 e −28: atenção (sinal fraco). Abaixo de −28: crítico — acione a operadora.</td></tr>
-    <tr><td>Tx (dBm)</td><td>Potência óptica <em>transmitida</em>. Valores típicos entre +1 e +5 dBm.</td></tr>
-    <tr><td>PPP</td><td>Estado da sessão PPPoE com a operadora. Qualquer coisa diferente de "Conectado" indica queda de autenticação.</td></tr>
-    <tr><td>Ping (ms)</td><td>Latência até 8.8.8.8. Em fibra saudável, espere valores de 5–20 ms. Picos altos ou "sem resposta" indicam instabilidade.</td></tr>
-    <tr><td>Download / Upload (Mbps)</td><td>Capacidade real medida pelo Ookla Speedtest contra um servidor local. É o número válido para comparar com o plano contratado.</td></tr>
+  <h2>💡 Entenda o Sinal Óptico (dBm)</h2>
+  <p>A força da luz na fibra é medida em <strong>dBm</strong>. Como é uma escala negativa, <strong>quanto menor o número após o sinal de menos, melhor</strong>.</p>
+
+  <table class="status-table">
+    <thead>
+      <tr><th>Sinal (Rx)</th><th>Status da Luz</th><th>Qualidade Real</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label-ok">-15 a -24.9 dBm</td>
+        <td>Azul</td>
+        <td><strong>Saudável.</strong> Internet estável e na velocidade máxima.</td>
+      </tr>
+      <tr>
+        <td class="label-aviso">-25 a -27.5 dBm</td>
+        <td>Azul</td>
+        <td><strong>Ruim.</strong> O sinal está fraco. O modem "sobrevive", mas você terá engasgos e lentidão.</td>
+      </tr>
+      <tr>
+        <td class="label-ruim">Pior que -28 dBm</td>
+        <td>Vermelho (LOS)</td>
+        <td><strong>Crítico.</strong> A fibra está danificada ou suja. A internet vai cair.</td>
+      </tr>
+    </tbody>
   </table>
+  <p class="nota" style="margin-top: 15px; color: var(--texto);">⚠️ <strong>Atenção:</strong> Não se engane pela luz azul. Se o seu sinal estiver em -26 dBm, sua internet não está boa e pode cair a qualquer momento.</p>
 </section>
 
 <section>
-  <h2>Boas práticas</h2>
-  <ul>
-    <li>O teste de velocidade satura o link por alguns segundos — videochamadas podem engasgar nesse instante.</li>
-    <li>Nas quedas de energia do modem, o monitor tenta refazer login automaticamente a cada ciclo.</li>
-    <li>Backups <code>.bak</code> são criados automaticamente antes de qualquer exclusão de dados.</li>
+  <h2>🔄 Iniciar automaticamente com o sistema</h2>
+  <p>Para o monitoramento sobreviver a reinicializações sem intervenção:</p>
+  <ul style="padding-left: 20px; margin-top: 10px; font-size: 0.92rem;">
+    <li style="margin-bottom: 12px;"><strong>Windows</strong> — dê dois cliques em <code>instalar_autostart.bat</code>. Ele cria um atalho na pasta Inicializar do seu usuário (sem precisar de administrador). Para desfazer: <code>remover_autostart.bat</code>.</li>
+    <li style="margin-bottom: 12px;"><strong>Linux</strong> — crie <code>~/.config/systemd/user/mitracheck.service</code>:</li>
   </ul>
+  <p style="background:#0f172a;border-radius:8px;padding:10px 14px;font-family:monospace;font-size:.8rem;color:var(--verde);">
+    [Unit]<br>
+    Description=MitraCheck Vivo<br>
+    After=network-online.target<br>
+    [Service]<br>
+    WorkingDirectory=/caminho/do/projeto<br>
+    ExecStart=/usr/bin/python3 servidor.py<br>
+    Restart=on-failure<br>
+    [Install]<br>
+    WantedBy=default.target
+  </p>
+  <p style="margin-top:10px;">Depois ative com: <code>systemctl --user enable --now mitracheck</code></p>
+  <ul style="padding-left: 20px; margin-top: 10px; font-size: 0.92rem;">
+    <li><strong>macOS</strong> — Ajustes &rsaquo; Geral &rsaquo; Itens de Login: adicione um script que execute <code>python3 servidor.py</code> na pasta do projeto.</li>
+  </ul>
+  <p class="nota">No Windows, a tarefa agendada via <code>schtasks</code> pode ser bloqueada por política corporativa — por isso o instalador usa o atalho na pasta Inicializar.</p>
 </section>
+
+<section>
+  <h2>⚠️ Notas Técnicas</h2>
+  <ul style="padding-left: 20px; font-size: 0.9rem; color: var(--cinza);">
+    <li>Este sistema é um servidor web independente que coordena os monitores em segundo plano.</li>
+    <li>Se o sistema parar de ler os dados, verifique se a senha do modem na página de administração foi alterada.</li>
+    <li><strong>Consumo de dados do teste de velocidade:</strong> cada execução dura cerca de 30 segundos e transfere um volume <em>variável</em> — quanto mais rápida a internet, mais dados a Ookla usa para medir com precisão. Numa linha de 600 Mbps, foram medidos ~1,2 GB por teste (880 MB de download + 300 MB de upload). <strong style="color: var(--texto);">No intervalo atual de <span class="dado-intervalo">2 horas</span>, isso representa aproximadamente <span class="dado-consumo">14 GB</span> por dia.</strong> Por isso, evite downloads pesados durante a execução: além de distorcer o resultado, eles se somam ao consumo.</li>
+  </ul>
+  <p class="nota">Valores de intervalo e consumo atualizados automaticamente a partir da configuração salva.</p>
+</section>
+
+<footer>
+  MitraCheck v1.0
+</footer>
+
+<script>
+fetch("/api/config")
+  .then(r => r.json())
+  .then(c => {
+    const min = c.intervalo_min;
+    const texto = min % 60 === 0
+      ? (min / 60) + " hora" + (min >= 120 ? "s" : "")
+      : min + " minutos";
+    document.querySelectorAll(".dado-intervalo").forEach(el => el.textContent = texto);
+    const testesPorDia = 1440 / min;
+    const gbDia = Math.round(testesPorDia * 1.2);
+    document.querySelectorAll(".dado-consumo").forEach(el => el.textContent = "~" + gbDia + " GB");
+  })
+  .catch(() => {});
+</script>
 
 </body>
 </html>

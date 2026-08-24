@@ -1,6 +1,7 @@
 import argparse
 import csv
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -47,14 +48,27 @@ def testar(binario: str) -> tuple[float, float, int | None, str]:
         mensagem = dados.get("errorMessage") or dados.get("error")
         return None, None, None, f"ERRO: {mensagem}"
 
-    down = float(dados["download"]["bandwidth"]) * 8 / 1_000_000
-    up = float(dados["upload"]["bandwidth"]) * 8 / 1_000_000
+    down_bruto = float(dados["download"]["bandwidth"]) * 8 / 1_000_000
+    up_bruto = float(dados["upload"]["bandwidth"]) * 8 / 1_000_000
     ping_ms = round(float(dados["ping"]["latency"]), 1)
+
+    problemas = []
+
+    def validar(valor: float, nome: str) -> float | None:
+        if not math.isfinite(valor) or valor < 0:
+            problemas.append(f"{nome} invalido ({valor:.2f})")
+            return None
+        return valor
+
+    down = validar(down_bruto, "download")
+    up = validar(up_bruto, "upload")
 
     servidor = dados.get("server", {})
     nome = servidor.get("name", "?")
     local = servidor.get("location", "?")
     info = f"servidor: {nome} ({local})"
+    if problemas:
+        info += " | " + "; ".join(problemas)
 
     return down, up, ping_ms, info
 
@@ -90,11 +104,12 @@ def main() -> None:
             agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             falhou = down is None or up is None or ms is None
-            observacao = info if not falhou else ""
-            alertas = []
-            if falhou and info.startswith("ERRO"):
-                alertas.append(info[5:].strip())
+            if info.startswith("ERRO"):
                 observacao = ""
+                alertas = [info[5:].strip()]
+            else:
+                observacao = info
+                alertas = ["medicao incompleta"] if falhou else []
 
             marcador = "[ALERTA] " if alertas else ""
             detalhe = " | " + "; ".join(alertas) if alertas else ""
