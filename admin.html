@@ -62,9 +62,51 @@
         <div class="dica" id="dicaSenha"></div>
       </div>
     </div>
+    <div class="linha">
+      <div>
+        <label for="contratada">Velocidade contratada (Mbps)</label>
+        <input id="contratada" type="number" min="0" step="10">
+        <div class="dica">Usada como linha de referência no gráfico de velocidade.</div>
+      </div>
+      <div></div>
+    </div>
     <button class="botao" type="submit">Salvar configurações</button>
     <span class="estado" id="estadoProcessos"></span>
   </form>
+</section>
+
+<section>
+  <h2>Leitura da página do modem (avançado)</h2>
+  <div class="linha">
+    <div>
+      <label for="loginPath">Página de login (caminho)</label>
+      <input id="loginPath" placeholder="/cgi-bin/login.cgi">
+    </div>
+    <div>
+      <label for="dadosPath">Página com os dados (caminho)</label>
+      <input id="dadosPath" placeholder="/cgi-bin/sophia_info.cgi">
+    </div>
+  </div>
+  <div class="linha">
+    <div>
+      <label for="padraoRx">Padrão do Rx (regex)</label>
+      <input id="padraoRx" placeholder="Potência Rx:</strong>... (-?[\d.]+) dBm">
+    </div>
+  </div>
+  <div class="linha">
+    <div>
+      <label for="padraoTx">Padrão do Tx (regex)</label>
+      <input id="padraoTx">
+    </div>
+    <div>
+      <label for="padraoPpp">Padrão do PPP (regex)</label>
+      <input id="padraoPpp">
+    </div>
+  </div>
+  <button class="botao" id="botaoSalvarLeitura" type="button">Salvar leitura</button>
+  <button class="botao neutro" id="botaoDiagnostico" type="button">Diagnosticar página</button>
+  <a id="linkDiagnostico" href="diagnostico_modem.html" target="_blank" style="display:none;color:var(--verde);font-size:.85rem;margin-left:10px;">abrir página capturada</a>
+  <div class="dica">Deixe vazio para usar os padrões originais. As regex precisam ter um grupo de captura ( ) para o valor. O diagnóstico faz login, captura a página crua e mostra o que cada padrão encontrou.</div>
 </section>
 
 <section>
@@ -126,6 +168,12 @@ async function carregarConfig() {
     ip.value = c.ip_modem;
     intervalo.value = c.intervalo_min;
     porta.value = c.porta;
+    contratada.value = c.velocidade_contratada || "";
+    loginPath.value = c.login_path;
+    dadosPath.value = c.dados_path;
+    padraoRx.value = c.padrao_rx;
+    padraoTx.value = c.padrao_tx;
+    padraoPpp.value = c.padrao_ppp;
     usuario.placeholder = c.usuario || "não definido";
     dicaSenha.textContent = c.senha_definida ? "Uma senha já está definida; deixe vazio para manter." : "Nenhuma senha definida.";
     const s = await api("/api/status");
@@ -141,6 +189,7 @@ document.getElementById("formConfig").addEventListener("submit", async ev => {
   const corpo = {
     ip_modem: ip.value.trim(),
     intervalo_min: parseInt(intervalo.value, 10),
+    velocidade_contratada: parseFloat(contratada.value) || 0,
   };
   if (usuario.value.trim() && senha.value) {
     corpo.usuario = usuario.value.trim();
@@ -158,6 +207,48 @@ document.getElementById("formConfig").addEventListener("submit", async ev => {
   } catch (e) {
     avisar("Erro ao salvar: " + e.message, true);
   }
+});
+
+document.getElementById("botaoSalvarLeitura").addEventListener("click", async () => {
+  try {
+    const r = await api("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        login_path: loginPath.value.trim(),
+        dados_path: dadosPath.value.trim(),
+        padrao_rx: padraoRx.value.trim(),
+        padrao_tx: padraoTx.value.trim(),
+        padrao_ppp: padraoPpp.value.trim(),
+      }),
+    });
+    avisar("Leitura salva." + (r.reiniciados.includes("monitor") ? " Monitor reiniciado." : ""));
+  } catch (e) {
+    avisar("Erro ao salvar leitura: " + e.message, true);
+  }
+});
+
+document.getElementById("botaoDiagnostico").addEventListener("click", async () => {
+  const botao = document.getElementById("botaoDiagnostico");
+  botao.disabled = true;
+  botao.textContent = "Consultando modem...";
+  try {
+    const r = await api("/api/diagnostico", { method: "POST" });
+    if (r.ok) {
+      const achadosTxt = Object.entries(r.achados || {})
+        .map(([k, v]) => k + "=" + v)
+        .join(", ") || "nenhum padrao encontrou valor";
+      avisar(`Pagina capturada (${r.bytes} bytes). Encontrado: ${achadosTxt}`);
+      document.getElementById("linkDiagnostico").style.display = "inline";
+    } else {
+      avisar("Falha: " + (r.erro || "desconhecida"), true);
+    }
+  } catch (e) {
+    avisar("Erro no diagnostico: " + e.message, true);
+  }
+  botao.disabled = false;
+  botao.textContent = "Diagnosticar página";
+  carregarConfig();
 });
 
 document.getElementById("botaoApagarTudo").addEventListener("click", async () => {

@@ -160,9 +160,9 @@
   <ul style="padding-left: 20px; font-size: 0.9rem; color: var(--cinza);">
     <li>Este sistema é um servidor web independente que coordena os monitores em segundo plano.</li>
     <li>Se o sistema parar de ler os dados, verifique se a senha do modem na página de administração foi alterada.</li>
-    <li><strong>Consumo de dados do teste de velocidade:</strong> cada execução dura cerca de 30 segundos e transfere um volume <em>variável</em> — quanto mais rápida a internet, mais dados a Ookla usa para medir com precisão. Numa linha de 600 Mbps, foram medidos ~1,2 GB por teste (880 MB de download + 300 MB de upload). <strong style="color: var(--texto);">No intervalo atual de <span class="dado-intervalo">2 horas</span>, isso representa aproximadamente <span class="dado-consumo">14 GB</span> por dia.</strong> Por isso, evite downloads pesados durante a execução: além de distorcer o resultado, eles se somam ao consumo.</li>
+    <li><strong>Consumo de dados do teste de velocidade:</strong> cada execução dura cerca de 30 segundos e transfere um volume <em>variável</em> — quanto mais rápida a internet, mais dados a Ookla usa para medir com precisão. Numa linha de 600 Mbps, foram medidos ~1,2 GB por teste (880 MB de download + 300 MB de upload). Como o teste é por tempo, o consumo é proporcional à velocidade: <strong style="color: var(--texto);">na sua linha contratada de <span class="dado-contratada">600</span> Mbps, cada teste gasta <span class="dado-gb-teste">~1,2 GB</span>. No intervalo atual de <span class="dado-intervalo">4 horas</span> entre testes, isso representa aproximadamente <span class="dado-consumo">7 GB</span> por dia.</strong> Por isso, evite downloads pesados durante a execução: além de distorcer o resultado, eles se somam ao consumo.</li>
   </ul>
-  <p class="nota">Valores de intervalo e consumo atualizados automaticamente a partir da configuração salva.</p>
+  <p class="nota">Valores de intervalo, velocidade contratada e consumo atualizados automaticamente a partir da configuração salva.</p>
 </section>
 
 <footer>
@@ -177,10 +177,14 @@ fetch("/api/config")
     const texto = min % 60 === 0
       ? (min / 60) + " hora" + (min >= 120 ? "s" : "")
       : min + " minutos";
-    document.querySelectorAll(".dado-intervalo").forEach(el => el.textContent = texto);
-    const testesPorDia = 1440 / min;
-    const gbDia = Math.round(testesPorDia * 1.2);
-    document.querySelectorAll(".dado-consumo").forEach(el => el.textContent = "~" + gbDia + " GB");
+document.querySelectorAll(".dado-intervalo").forEach(el => el.textContent = texto);
+const testesPorDia = 1440 / min;
+const contratada = parseFloat(c.velocidade_contratada) || 660;
+document.querySelectorAll(".dado-contratada").forEach(el => el.textContent = contratada);
+const gbTeste = 1.2 * contratada / 600;
+document.querySelectorAll(".dado-gb-teste").forEach(el => el.textContent = "~" + gbTeste.toFixed(1) + " GB");
+const gbDia = Math.round(testesPorDia * gbTeste);
+document.querySelectorAll(".dado-consumo").forEach(el => el.textContent = "~" + gbDia + " GB");
   })
   .catch(() => {});
 </script>

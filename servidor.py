@@ -7,8 +7,32 @@ import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from roteador import (
+    LOGIN_PADRAO,
+    DADOS_PADRAO,
+    PADRAO_RX_PADRAO,
+    PADRAO_TX_PADRAO,
+    PADRAO_PPP_PADRAO,
+)
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
 PASTA = Path(__file__).parent
 CONFIG_PATH = PASTA / "config_testador.json"
+
+CONFIG_PADRAO = {
+    "ip_modem": "192.168.15.1",
+    "usuario": "",
+    "senha": "",
+    "intervalo_min": 30,
+    "porta": 8000,
+    "login_path": LOGIN_PADRAO,
+    "dados_path": DADOS_PADRAO,
+    "padrao_rx": PADRAO_RX_PADRAO,
+    "padrao_tx": PADRAO_TX_PADRAO,
+    "padrao_ppp": PADRAO_PPP_PADRAO,
+    "velocidade_contratada": 0,
+}
 
 SCRIPTS = {
     "monitor": ["monitor.py"],
@@ -26,24 +50,32 @@ estado_servidor = {"porta": 8000, "servidor": None}
 
 
 def carregar_config():
-    cfg = {
-        "ip_modem": "192.168.15.1",
-        "usuario": "",
-        "senha": "",
-        "intervalo_min": 30,
-        "porta": 8000,
-    }
+    cfg = dict(CONFIG_PADRAO)
     try:
         cfg.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
     except Exception:
         pass
+    for campo in ("login_path", "dados_path", "padrao_rx", "padrao_tx", "padrao_ppp"):
+        if not str(cfg.get(campo) or "").strip():
+            cfg[campo] = CONFIG_PADRAO[campo]
     cfg["porta"] = int(cfg["porta"])
     cfg["intervalo_min"] = int(cfg["intervalo_min"])
+    try:
+        cfg["velocidade_contratada"] = float(cfg["velocidade_contratada"])
+    except (TypeError, ValueError):
+        cfg["velocidade_contratada"] = 0
     return cfg
 
 
 def salvar_config(cfg):
-    dados = {k: cfg[k] for k in ("ip_modem", "usuario", "senha", "intervalo_min", "porta")}
+    dados = {
+        k: cfg[k]
+        for k in (
+            "ip_modem", "usuario", "senha", "intervalo_min", "porta",
+            "login_path", "dados_path", "padrao_rx", "padrao_tx", "padrao_ppp",
+            "velocidade_contratada",
+        )
+    }
     CONFIG_PATH.write_text(
         json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -136,6 +168,60 @@ def configuracao_publica():
         "intervalo_min": cfg["intervalo_min"],
         "porta": cfg["porta"],
         "senha_definida": bool(cfg["senha"]),
+        "login_path": cfg["login_path"],
+        "dados_path": cfg["dados_path"],
+        "padrao_rx": cfg["padrao_rx"],
+        "padrao_tx": cfg["padrao_tx"],
+        "padrao_ppp": cfg["padrao_ppp"],
+        "velocidade_contratada": cfg["velocidade_contratada"],
+    }
+
+
+def diagnostico_modem():
+    import re
+    from roteador import (
+        Roteador,
+        LOGIN_PADRAO, DADOS_PADRAO,
+        PADRAO_RX_PADRAO, PADRAO_TX_PADRAO, PADRAO_PPP_PADRAO,
+    )
+
+    cfg = carregar_config()
+    if not cfg.get("senha"):
+        return {"erro": "credenciais nao definidas"}
+    r = Roteador()
+    try:
+        r.entrar(cfg.get("usuario", ""), segredos.desproteger(cfg.get("senha", "")))
+    except Exception as erro:
+        return {"erro": f"login falhou: {erro}"}
+    try:
+        pagina = r._buscar_pagina(r.dados_caminho)
+    except Exception as erro:
+        return {"erro": f"falha ao abrir {r.dados_caminho}: {erro}"}
+
+    achados = {}
+    for nome, padrao_salvo, padrao_padrao in (
+        ("rx", cfg.get("padrao_rx"), PADRAO_RX_PADRAO),
+        ("tx", cfg.get("padrao_tx"), PADRAO_TX_PADRAO),
+        ("ppp", cfg.get("padrao_ppp"), PADRAO_PPP_PADRAO),
+    ):
+        try:
+            expressao = padrao_salvo or padrao_padrao
+            if not expressao:
+                continue
+            m = re.search(expressao, pagina)
+            if m:
+                grupo = next((g for g in m.groups() if g is not None), m.group(0))
+                achados[nome] = str(grupo)[:40]
+        except re.error:
+            achados[nome] = "REGEX INVALIDA"
+
+    caminho = PASTA / "diagnostico_modem.html"
+    caminho.write_text(pagina, encoding="utf-8")
+    return {
+        "ok": True,
+        "bytes": len(pagina.encode("utf-8")),
+        "arquivo": caminho.name,
+        "achados": achados,
     }
 
 
@@ -213,6 +299,9 @@ class Manipulador(SimpleHTTPRequestHandler):
             return self._configurar()
         if self.path == "/api/dados/apagar":
             return self._apagar_dados()
+        if self.path == "/api/diagnostico":
+            self._json(diagnostico_modem())
+            return
         if self.path == "/api/porta":
             return self._mudar_porta()
         self._json({"erro": "rota invalida"}, 404)
@@ -234,6 +323,28 @@ class Manipulador(SimpleHTTPRequestHandler):
                     parar("monitor")
                     iniciar("monitor")
                     reiniciados.append("monitor")
+        for campo in ("login_path", "dados_path"):
+            if campo in dados and str(dados[campo]).strip():
+                caminho_novo = str(dados[campo]).strip()
+                if not caminho_novo.startswith("/"):
+                    self._json({"erro": f"{campo} deve comecar com /"}, 400)
+                    return
+                cfg[campo] = caminho_novo
+        padroes = {}
+        for campo in ("padrao_rx", "padrao_tx", "padrao_ppp"):
+            if campo not in dados:
+                continue
+            bruto = str(dados[campo] or "").strip()
+            padroes[campo] = bruto
+            if bruto:
+                import re as _re
+                try:
+                    _re.compile(bruto)
+                except _re.error as erro:
+                    self._json({"erro": f"regex invalida em {campo}: {erro}"}, 400)
+                    return
+                cfg[campo] = bruto
+        mudou_leitura = bool(padroes) or "login_path" in dados or "dados_path" in dados
         intervalo_novo = None
         if "intervalo_min" in dados:
             try:
@@ -247,6 +358,12 @@ class Manipulador(SimpleHTTPRequestHandler):
                     parar("velocidade")
                     iniciar("velocidade")
                     reiniciados.append("velocidade")
+        if "velocidade_contratada" in dados:
+            try:
+                cfg["velocidade_contratada"] = max(0.0, float(dados["velocidade_contratada"] or 0))
+            except (TypeError, ValueError):
+                self._json({"erro": "velocidade_contratada invalida"}, 400)
+                return
         usuario = str(dados.get("usuario") or "").strip()
         senha = str(dados.get("senha") or "")
         if usuario or senha:
@@ -260,6 +377,10 @@ class Manipulador(SimpleHTTPRequestHandler):
                 parar("monitor")
                 iniciar("monitor")
                 reiniciados.append("monitor")
+        if mudou_leitura and esta_rodando("monitor") and "monitor" not in reiniciados:
+            parar("monitor")
+            iniciar("monitor")
+            reiniciados.append("monitor")
         salvar_config(cfg)
         resposta = configuracao_publica()
         resposta["reiniciados"] = reiniciados

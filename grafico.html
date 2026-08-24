@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
@@ -14,6 +14,27 @@
   h1 { font-size:1.3rem; font-weight:600; }
   h1 a { color:var(--cinza); text-decoration:none; margin-right:8px; }
   h1 a:hover { color:var(--verde); }
+  .engrenagem { position:relative; color:var(--cinza); text-decoration:none; font-size:1.15rem; margin-left:8px; vertical-align:middle; }
+  .engrenagem:hover { color:var(--verde); }
+  .com-dica { position:relative; }
+  .com-dica::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 6px;
+    background: #334155;
+    color: var(--texto);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: .78rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s;
+    z-index: 10;
+  }
+  .com-dica:hover::after { opacity: 1; }
   .cartoes { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
   .cartao { background:var(--painel); border-radius:10px; padding:14px 16px; }
   .cartao .rotulo { font-size:.75rem; color:var(--cinza); text-transform:uppercase; letter-spacing:.05em; }
@@ -40,10 +61,11 @@
 <header>
   <h1><a href="index.html" title="Voltar ao início">&lt;</a>MitraCheck Vivo — sinal da fibra</h1>
   <div>
-    <button id="botaoPeriodo" class="botao desligado" type="button"></button>
-    <button id="botaoMonitor" class="botao" type="button" disabled>Monitor: ...</button>
-    <button id="botaoVelocidade" class="botao" type="button" disabled>Velocidade: ...</button>
-    <button id="botaoAuto" class="botao" type="button"></button>
+    <button id="botaoPeriodo" class="botao desligado com-dica" type="button" data-tip="Muda o período exibido nos gráficos"></button>
+    <button id="botaoMonitor" class="botao com-dica" type="button" disabled data-tip="Liga/desliga a coleta do sinal da fibra">Monitor: ...</button>
+    <button id="botaoVelocidade" class="botao com-dica" type="button" disabled data-tip="Liga/desliga o teste de velocidade">Velocidade: ...</button>
+    <button id="botaoAuto" class="botao com-dica" type="button" data-tip="Liga/desliga a atualização automática"></button>
+    <a href="admin.html" class="engrenagem com-dica" data-tip="Página de configurações" aria-label="Configurações">⚙️</a>
     <span id="mensagem"></span>
   </div>
 </header>
@@ -85,6 +107,7 @@
 
 <script>
 let graficoRx = null, graficoTx = null, graficoPing = null, graficoVelocidade = null;
+let velocidadeContratada = 0;
 let dadosFibra = [], dadosVelocidade = [];
 
 const PERIODOS = [
@@ -231,6 +254,18 @@ function renderVelocidade(brutos) {
   const rotulos = rotulosDe(dados);
   const down = dados.map(d => d.download_mbps === "" ? null : parseFloat(d.download_mbps.replace(",", ".")));
   const up = dados.map(d => d.upload_mbps === "" ? null : parseFloat(d.upload_mbps.replace(",", ".")));
+  const temContrato = velocidadeContratada > 0;
+  const conjuntos = [
+    { label: "Download (Mbps)", data: down, borderColor: "#f472b6", backgroundColor: "#f472b633", tension: .25, spanGaps: true, pointRadius: 2 },
+    { label: "Upload (Mbps)", data: up, borderColor: "#34d399", backgroundColor: "#34d39933", tension: .25, spanGaps: true, pointRadius: 2 }
+  ];
+  if (temContrato) {
+    conjuntos.push({
+      label: "Contratado (" + velocidadeContratada + " Mbps)",
+      data: rotulos.map(() => velocidadeContratada),
+      borderColor: "#facc15", borderDash: [6, 6], borderWidth: 1.5, pointRadius: 0
+    });
+  }
 
   const dica = ctx => {
     const d = dados[ctx[0].dataIndex];
@@ -243,13 +278,10 @@ function renderVelocidade(brutos) {
   if (graficoVelocidade) graficoVelocidade.destroy();
   graficoVelocidade = new Chart(document.getElementById("graficoVelocidade"), {
     type: "line",
-    data: { labels: rotulos, datasets: [
-      { label: "Download (Mbps)", data: down, borderColor: "#f472b6", backgroundColor: "#f472b633", tension: .25, spanGaps: true, pointRadius: 2 },
-      { label: "Upload (Mbps)", data: up, borderColor: "#34d399", backgroundColor: "#34d39933", tension: .25, spanGaps: true, pointRadius: 2 }
-    ]},
+    data: { labels: rotulos, datasets: conjuntos },
     options: {
       responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
-      scales: { y: { beginAtZero: true, ticks: { color: "#94a3b8" }, grid: { color: "#33415555" } }, x: { ticks: { color: "#94a3b8", maxTicksLimit: 12 }, grid: { display: false } } },
+      scales: { y: { beginAtZero: true, suggestedMax: temContrato ? velocidadeContratada * 1.08 : undefined, ticks: { color: "#94a3b8" }, grid: { color: "#33415555" } }, x: { ticks: { color: "#94a3b8", maxTicksLimit: 12 }, grid: { display: false } } },
       plugins: { legend: { labels: { color: "#e2e8f0" } }, tooltip: { callbacks: { afterBody: dica } } }
     }
   });
@@ -360,7 +392,11 @@ const carregar = (url, render, guardar) =>
     });
 
 carregar("log_fibra.csv", renderFibra, d => dadosFibra = d);
-carregar("log_velocidade.csv", renderVelocidade, d => dadosVelocidade = d);
+fetch("/api/config")
+  .then(r => r.json())
+  .then(c => { velocidadeContratada = parseFloat(c.velocidade_contratada) || 0; })
+  .catch(() => {})
+  .finally(() => carregar("log_velocidade.csv", renderVelocidade, d => dadosVelocidade = d));
 
 const botaoPeriodo = document.getElementById("botaoPeriodo");
 botaoPeriodo.addEventListener("click", () => {

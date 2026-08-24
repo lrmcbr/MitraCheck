@@ -10,6 +10,12 @@ from pathlib import Path
 
 BASE = "http://192.168.15.1"
 
+LOGIN_PADRAO = "/cgi-bin/login.cgi"
+DADOS_PADRAO = "/cgi-bin/sophia_info.cgi"
+PADRAO_RX_PADRAO = r"Potência Rx:</strong>\s*<br/>\s*(-?[\d.]+)\s*dBm"
+PADRAO_TX_PADRAO = r"Potência Tx:</strong>\s*<br/>\s*(-?[\d.]+)\s*dBm"
+PADRAO_PPP_PADRAO = r"PPP:</strong>\s*<br/>\s*<span>([^<]+)</span>"
+
 
 def _base_do_config():
     try:
@@ -55,7 +61,19 @@ def _codificar_senha(senha):
 
 class Roteador:
     def __init__(self, base=None):
+        cfg = {}
+        try:
+            cfg = json.loads(
+                (Path(__file__).parent / "config_testador.json").read_text(encoding="utf-8")
+            )
+        except Exception:
+            pass
         self.base = base or _base_do_config()
+        self.login_caminho = str(cfg.get("login_path") or LOGIN_PADRAO)
+        self.dados_caminho = str(cfg.get("dados_path") or DADOS_PADRAO)
+        self.padrao_rx = str(cfg.get("padrao_rx") or PADRAO_RX_PADRAO)
+        self.padrao_tx = str(cfg.get("padrao_tx") or PADRAO_TX_PADRAO)
+        self.padrao_ppp = str(cfg.get("padrao_ppp") or PADRAO_PPP_PADRAO)
         self.jar = CookieJar()
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.jar)
@@ -73,7 +91,7 @@ class Roteador:
         return resp.read().decode("utf-8", errors="replace")
 
     def entrar(self, usuario, senha):
-        pagina = self._get("/cgi-bin/login.cgi")
+        pagina = self._get(self.login_caminho)
         m = re.search(r"sid\s*=\s*'([0-9a-fA-F]+)'", pagina)
         if not m:
             raise RuntimeError("sid nao encontrado na pagina de login")
@@ -82,7 +100,7 @@ class Roteador:
             f"{_codificar_senha(senha)}:{sid}".encode()
         ).hexdigest()
         self._post(
-            "/cgi-bin/login.cgi",
+            self.login_caminho,
             {
                 "Loginuser": usuario,
                 "LoginPasswordValue": hash_senha,
@@ -95,6 +113,9 @@ class Roteador:
 
     def _buscar_pagina(self, caminho):
         return html.unescape(self._get(caminho))
+
+    def pagina_crua(self, caminho=None):
+        return self._get(caminho or self.dados_caminho)
 
     def dispositivo(self):
         pagina = self._buscar_pagina("/cgi-bin/about-power-box.cgi")
@@ -111,10 +132,15 @@ class Roteador:
         return campos
 
     def status_fibra(self):
-        pagina = self._buscar_pagina("/cgi-bin/sophia_info.cgi")
-        rx_m = re.search(r"Potência Rx:</strong>\s*<br/>\s*(-?[\d.]+)\s*dBm", pagina)
-        tx_m = re.search(r"Potência Tx:</strong>\s*<br/>\s*(-?[\d.]+)\s*dBm", pagina)
-        ppp_m = re.search(r"PPP:</strong>\s*<br/>\s*<span>([^<]+)</span>", pagina)
+        pagina = self._buscar_pagina(self.dados_caminho)
+        try:
+            rx_m = re.search(self.padrao_rx, pagina)
+            tx_m = re.search(self.padrao_tx, pagina)
+            ppp_m = re.search(self.padrao_ppp, pagina)
+        except re.error:
+            rx_m = re.search(PADRAO_RX_PADRAO, pagina)
+            tx_m = re.search(PADRAO_TX_PADRAO, pagina)
+            ppp_m = re.search(PADRAO_PPP_PADRAO, pagina)
         return {
             "rx_dbm": float(rx_m.group(1)) if rx_m else None,
             "tx_dbm": float(tx_m.group(1)) if tx_m else None,
